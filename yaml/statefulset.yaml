@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: bash-runtime
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: bash-runtime
+  serviceName: bash-runtime-headless
+  template:
+    metadata:
+      labels:
+        app: bash-runtime
+    spec:
+      containers:
+        - name: bash-runtime
+          image: "jiangpch/bash-runtime:latest"
+          env:
+            - name: PULSAR_URL
+              value: pulsar://localhost:6650
+            - name: OUT_TOPIC
+              value: bash-runtime-out
+            - name: LOG_TOPIC
+              value: bash-runtime-log
+            - name: IN_TOPICS
+              value: bash-runtime-in
+            - name: SUBSCRIPTION
+              value: bash-runtime-sub
+      terminationGracePeriodSeconds: 10
