@@ -1,3 +1,5 @@
+BUILDER_TAG?=$(shell date '+%y%m%d-%H%M')
+
 .PHONY: all test clean
 
 test:
@@ -10,3 +12,7 @@ build: $(GO_SOURCES)
 
 run: $(GO_SOURCES)
 	go run .
+
+distDocker:
+	echo "builder tag: ${BUILDER_TAG}"
+	docker build -t jiangpch/bash-runtime:${BUILDER_TAG} .
