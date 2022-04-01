@@ -4,11 +4,127 @@ import (
 	"bash-runtime/common"
 	"bytes"
 	"context"
+	"errors"
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
+	"io"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
+
+type Runner struct {
+	pulsarWriter *common.PulsarWriter
+	client pulsar.Client
+	consumer pulsar.Consumer
+	producer pulsar.Producer
+	logger *logrus.Logger
+	running bool
+}
+
+func NewRunner(pulsarUrl string, logTopic string, inputTopics string, subscription string, outputTopic string) (*Runner, error) {
+	client, err := pulsar.NewClient(pulsar.ClientOptions{
+		URL: pulsarUrl,
+	})
+	if err != nil {
+		logrus.Errorf("Faild to connect pulsar, %s", err)
+		return nil, err
+	}
+
+	producer, err := client.CreateProducer(pulsar.ProducerOptions{
+		Topic: outputTopic,
+	})
+	if err != nil {
+		logrus.Errorf("Faild to create producer, %s", err)
+		return nil, err
+	}
+
+	topics := strings.Split(inputTopics, ",")
+	consumer, err := client.Subscribe(pulsar.ConsumerOptions{
+		Topics:            topics,
+		SubscriptionName: subscription,
+		Type:             pulsar.Shared, // make parallel processing available
+	})
+	if err != nil {
+		logrus.Errorf("Faild to create consumer, %s", err)
+		return nil, err
+	}
+
+	var pulsarWriter *common.PulsarWriter
+	logger := logrus.StandardLogger()
+	if logTopic != "" {
+		pulsarWriter, err = common.NewPulsarWriter(logTopic, client)
+		if err != nil {
+			logrus.Errorf("Faild to create log producer, %s", err)
+			return nil, err
+		}
+		logger = logrus.New()
+		logger.SetOutput(io.MultiWriter(os.Stdout, pulsarWriter))
+	}
+
+	return &Runner{
+		pulsarWriter: pulsarWriter,
+		producer: producer,
+		consumer: consumer,
+		client: client,
+		logger: logger,
+	}, nil
+}
+
+func (runner *Runner) Run(scriptFile string) error  {
+	// do not allow running in parallel using a same instance
+	if runner.running {
+		return errors.New("runner is already running")
+	}
+	runner.running = true
+	for {
+		msg, err := runner.consumer.Receive(context.Background())
+		if err != nil {
+			runner.logger.Errorf("consumer is closed or context is done")
+			break
+		}
+		runner.consumer.AckID(msg.ID())
+
+		stdout, stderr, err := execScript(scriptFile, string(msg.Payload()))
+		if err != nil {
+			runner.logger.Errorf("failed to process message: %s", err)
+			continue
+		}
+
+		if stderr.Len() > 0 {
+			runner.logger.Errorf("error: %s", stderr.String())
+		}
+		runner.logger.Infof("process message '%s' successfully", msg.Payload())
+
+		// retry sending message
+		err = common.Retry(func() error {
+			_, err = runner.producer.Send(context.Background(), &pulsar.ProducerMessage{
+				Payload: stdout.Bytes(),
+			})
+			if err != nil {
+				return err
+			}
+			return nil
+		}, common.RetryConfig{Attempts: 3, Delay: 100 * time.Millisecond})
+
+		if err != nil {
+			runner.logger.Errorf("failed to send message to topic: %s, skip", err)
+		}
+	}
+	runner.running = false
+	return nil
+}
+
+func (runner *Runner) Close() {
+	if runner == nil {
+		return
+	}
+	runner.pulsarWriter.Close()
+	runner.consumer.Close()
+	runner.producer.Close()
+	runner.client.Close()
+}
 
 func execScript(file string, param string) (*bytes.Buffer, *bytes.Buffer, error)  {
 	if _, err := exec.LookPath(file); err != nil {
@@ -23,41 +139,4 @@ func execScript(file string, param string) (*bytes.Buffer, *bytes.Buffer, error)
 		return nil, &errb, common.ErrScriptExecError
 	}
 	return &outb, &errb, nil
-}
-
-func Run(consumer pulsar.Consumer, producer pulsar.Producer, scriptFile string, retry uint, delay time.Duration) {
-	for {
-		msg, err := consumer.Receive(context.Background())
-		if err != nil {
-			logrus.Errorf("consumer is closed or context is done")
-			break
-		}
-		consumer.AckID(msg.ID())
-
-		stdout, stderr, err := execScript(scriptFile, string(msg.Payload()))
-		if err != nil {
-			logrus.Errorf("failed to process message: %s", err)
-			continue
-		}
-
-		if stderr.Len() > 0 {
-			logrus.Errorf("error: %s", stderr.String())
-		}
-		logrus.Infof("process message '%s' succeefully", msg.Payload())
-
-		// retry sending message
-		err = common.Retry(func() error {
-			_, err = producer.Send(context.Background(), &pulsar.ProducerMessage{
-				Payload: stdout.Bytes(),
-			})
-			if err != nil {
-				return err
-			}
-			return nil
-		}, common.RetryConfig{Attempts: retry, Delay: delay})
-
-		if err != nil {
-			logrus.Errorf("failed to send message to topic: %s, skip", err)
-		}
-	}
 }

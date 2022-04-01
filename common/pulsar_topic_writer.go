@@ -30,3 +30,9 @@ func (writer *PulsarWriter) Write(p []byte) (int, error)  {
 	}
 	return len(p), nil
 }
+
+func (writer *PulsarWriter) Close() {
+	if writer != nil && writer.producer != nil {
+		writer.producer.Close()
+	}
+}
