@@ -110,7 +110,7 @@ k8s apply -f yaml/statefulset.yaml # update the default environments first
 ![structure](./docs/images/structure.jpg)
 
 The project creates:
-1. a consumer to subscript all input topics, and retrieve messages from them
+1. a consumer to subscribe  all input topics, and retrieve messages from them
 2. a producer to send processed message to output topic
 3. a producer to send log messages to log topic when configured
 4. a bash script executor to exec the script
