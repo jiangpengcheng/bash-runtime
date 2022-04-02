@@ -5,7 +5,7 @@ A bash runtime based on [Apache Pulsar](https://pulsar.apache.org/docs/en/concep
 It has below features:
 
 - process messages in given IN_TOPICS and produce result to given OUT_TOPIC
-- support multiple input topics, combined them with commas in the IN_TOPICS,
+- support multiple input topics, combined them with commas in the IN_TOPICS
 - support log topic by specifying the LOG_TOPIC
 - support parallel processing by running multiple instances
 - override the default script with your own one by editing the `scripts/exec.sh`
