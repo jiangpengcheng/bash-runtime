@@ -92,15 +92,15 @@ func (runner *Runner) Run(scriptFile string) error  {
 			continue
 		}
 
-		if stderr.Len() > 0 {
-			runner.logger.Errorf("error: %s", stderr.String())
+		if len(stderr) > 0 {
+			runner.logger.Errorf("error: %s", stderr)
 		}
 		runner.logger.Infof("process message '%s' successfully", msg.Payload())
 
 		// retry sending message
 		err = common.Retry(func() error {
 			_, err = runner.producer.Send(context.Background(), &pulsar.ProducerMessage{
-				Payload: stdout.Bytes(),
+				Payload: stdout,
 			})
 			if err != nil {
 				return err
@@ -126,7 +126,7 @@ func (runner *Runner) Close() {
 	runner.client.Close()
 }
 
-func execScript(file string, param string) (*bytes.Buffer, *bytes.Buffer, error)  {
+func execScript(file string, param string) ([]byte, []byte, error)  {
 	if _, err := exec.LookPath(file); err != nil {
 		return nil, nil, common.ErrScriptNotExist
 	}
@@ -135,8 +135,10 @@ func execScript(file string, param string) (*bytes.Buffer, *bytes.Buffer, error)
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
 	err := cmd.Run()
+	outBytes := bytes.TrimRight(outb.Bytes(), "\n")
+	errBytes := bytes.TrimRight(errb.Bytes(), "\n")
 	if err != nil {
-		return nil, &errb, common.ErrScriptExecError
+		return nil, errBytes, common.ErrScriptExecError
 	}
-	return &outb, &errb, nil
+	return outBytes, errBytes, nil
 }

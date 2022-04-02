@@ -16,7 +16,7 @@ func TestExec(t *testing.T) {
 		expectError  error
 	}{
 		{
-			name:         "it should runner the script correctly",
+			name:         "it should run the script correctly",
 			script:       "../scripts/exec.sh",
 			param:        "hello world",
 			expectStdout: "hello world!",
@@ -24,19 +24,19 @@ func TestExec(t *testing.T) {
 			expectError:  nil,
 		},
 		{
-			name:         "it should return error when runner a non-exist script",
+			name:         "it should return error when run a non-exist script",
 			script:       "../scripts/non-exist.sh",
 			param:        "hello world",
-			expectStdout: "<nil>",
-			expectStderr: "<nil>",
+			expectStdout: "",
+			expectStderr: "",
 			expectError:  common.ErrScriptNotExist,
 		},
 		{
-			name:         "it should return error when runner a non-executable script",
+			name:         "it should return error when run a non-executable script",
 			script:       "../scripts/non-executable.sh",
 			param:        "hello world",
-			expectStdout: "<nil>",
-			expectStderr: "<nil>",
+			expectStdout: "",
+			expectStderr: "",
 			expectError:  common.ErrScriptNotExist,
 		},
 		{
@@ -44,7 +44,7 @@ func TestExec(t *testing.T) {
 			script:       "../scripts/stderr.sh",
 			param:        "hello world",
 			expectStdout: "hello world!",
-			expectStderr: "../scripts/stderr.sh: line 3: data: command not found\n",
+			expectStderr: "../scripts/stderr.sh: line 3: data: command not found",
 			expectError:  nil,
 		},
 	}
@@ -52,8 +52,8 @@ func TestExec(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			stdout, stderr, err := execScript(tt.script, tt.param)
-			assert.Equal(t, tt.expectStdout, stdout.String())
-			assert.Equal(t, tt.expectStderr, stderr.String())
+			assert.Equal(t, tt.expectStdout, string(stdout))
+			assert.Equal(t, tt.expectStderr, string(stderr))
 			assert.Equal(t, tt.expectError, err)
 		})
 	}
