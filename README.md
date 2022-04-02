@@ -14,6 +14,7 @@ It has below features:
 ## How to use
 
 ```shell
+go mod download
 make run 
 # or build it first
 make build
